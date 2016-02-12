@@ -36,6 +36,9 @@ typedef enum Button_t {
 #define SMASH_BOTTOM_THRESHOLD 35
 #define SMASH_TOP_THRESHOLD    225
 
+#define C_STICK_BOTTOM_THRESHOLD 100
+#define C_STICK_TOP_THRESHOLD    150
+
 #define SHIELD_THRESHOLD 50
 
 #endif

@@ -1,5 +1,7 @@
 #include "statemachine.h"
 
+#include <stdlib.h>
+
 void machine_init()
 {
     curr_state = &state_a;
@@ -78,6 +80,18 @@ void state_b(Reason reason, Controller *controller, Animation *anim)
         break;
     case EXIT:
         //intentionally left blank
+        // The Joey Special
+        if(curr_state != state_directional_b)
+        {
+            for(uint8_t i = 0; i < 9; i++)
+            {
+                uint8_t rand_r = rand() % (255 + 1);
+                uint8_t rand_g = rand() % (255 + 1);
+                uint8_t rand_b = rand() % (255 + 1);
+                set_next_color(anim, rand_r, rand_g, rand_b);
+                set_next_color(anim, 0, 0, 0);
+            }
+        }
         break;
     }
 }
@@ -176,21 +190,11 @@ void state_d_down(Reason reason, Controller *controller, Animation *anim)
                     machine_toggle = !machine_toggle;
                     if(machine_toggle)
                     { // Green for machine being turned on
-                        set_next_color(anim, 0, 255, 0);
-                        set_next_color(anim, 0, 0, 0);
-                        set_next_color(anim, 0, 255, 0);
-                        set_next_color(anim, 0, 0, 0);
-                        set_next_color(anim, 0, 255, 0);
-                        set_next_color(anim, 0, 0, 0);
+                        flash_color(anim, 0, 255, 0, 4);
                     }
                     else
                     { // Red for machine being turned off
-                        set_next_color(anim, 255, 0, 0);
-                        set_next_color(anim, 0, 0, 0);
-                        set_next_color(anim, 255, 0, 0);
-                        set_next_color(anim, 0, 0, 0);
-                        set_next_color(anim, 255, 0, 0);
-                        set_next_color(anim, 0, 0, 0);
+                        flash_color(anim, 255, 0, 0, 4);
                     }
                 }
                 ++toggle_count;
@@ -211,7 +215,7 @@ void state_smash(Reason reason, Controller *controller, Animation *anim)
             Color color = new_color(0, 0, 0);
 
             // Set the animation
-            set_first_color(anim, color.r, color.g, color.b);
+            set_first_color(anim, 0, 0, 0);
 
             // This is the start of an interruptable animation
             set_pers_color(&color);
@@ -219,29 +223,54 @@ void state_smash(Reason reason, Controller *controller, Animation *anim)
         }
         case CONTINUE:
         {
-            // Continuation of an interruptabel state driven animation
-            if(pers_color.color.g < 255)
+            // Continuation of an interruptable state driven animation
+            if(pers_color.color.g > 40 && pers_color.color.g < 255)
             {
                 set_next_color(anim, pers_color.color.r, ++pers_color.color.g, ++pers_color.color.b);
                 anim->delay = 10;
+            }
+            else if(pers_color.color.g < 255)
+            {
+                ++pers_color.color.g;
             }
             break;
         }
         case EXIT:
         {
-            // Exit animation to flash the lights
-            set_next_color(anim, 0, 255, 255);
-            set_next_color(anim, 0, 0, 0);
-            set_next_color(anim, 0, 255, 255);
-            set_next_color(anim, 0, 0, 0);
-            set_next_color(anim, 0, 255, 255);
-            set_next_color(anim, 0, 0, 0);
-            set_next_color(anim, 0, 255, 255);
-            set_next_color(anim, 0, 0, 0);
-            set_next_color(anim, 0, 255, 255);
+            if(pers_color.color.g > 40)
+            {
+                // Exit animation to flash the lights
+                flash_color(anim, 0, 255, 255, 5);
+            }
+            else
+            {
+                set_next_color(anim, 0, 255, 0);
+                set_next_color(anim, 0, 254, 0);
+                anim->delay = 50;
+            }
             break;
         }
     }
+}
+void state_directional_b(Reason reason, Controller *controller, Animation *anim)
+{
+    switch(reason)
+    {
+        case ENTRY:
+            break;
+        case CONTINUE:
+            set_first_color(anim, 255, 0, 0);
+            anim->delay = 250;
+            break;
+        case EXIT:
+            //intentionally left blank
+            break;
+    }
+}
+
+void state_no_action(Reason reason, Controller *controller, Animation *anim)
+{
+    //do nothing but interrupt the idle animation
 }
 
 void state_no_input(Reason reason, Controller *controller, Animation *anim)
@@ -267,7 +296,8 @@ void state_no_input(Reason reason, Controller *controller, Animation *anim)
             else
             {
                 idle_lights();
-                set_next_color(anim, pers_color.color.r, pers_color.color.g, pers_color.color.b);
+                set_next_color(anim, pers_color.color.r, 0, (pers_color.color.r * .25));
+                anim->delay = 2;
             }
             break;
         case EXIT:
@@ -292,6 +322,10 @@ State_ptr generic_state_lookup(Controller *controller)
     }
     else if(CONTROLLER_B(*controller))
     {
+        if(is_joy_smash(controller))
+        {
+            return &state_directional_b;
+        }
         return &state_b;
     }
     else if(CONTROLLER_X(*controller) || CONTROLLER_Y(*controller))
@@ -314,6 +348,14 @@ State_ptr generic_state_lookup(Controller *controller)
     {
         return &state_smash;
     }
+    else if(is_joy_move(controller)         ||
+            CONTROLLER_START(*controller)   ||
+            CONTROLLER_D_UP(*controller)    ||
+            CONTROLLER_D_RIGHT(*controller) ||
+            CONTROLLER_D_LEFT(*controller)  )
+    {
+        return &state_no_action;
+    }
     else
     {
         return &state_no_input;
@@ -322,18 +364,26 @@ State_ptr generic_state_lookup(Controller *controller)
 
 bool is_c_smash(Controller *controller)
 {
-    return controller->c_x > SMASH_TOP_THRESHOLD    ||
-           controller->c_x < SMASH_BOTTOM_THRESHOLD ||
-           controller->c_y > SMASH_TOP_THRESHOLD    ||
-           controller->c_y < SMASH_BOTTOM_THRESHOLD; 
+    return controller->c_x > C_STICK_TOP_THRESHOLD    ||
+           controller->c_x < C_STICK_BOTTOM_THRESHOLD ||
+           controller->c_y > C_STICK_TOP_THRESHOLD    ||
+           controller->c_y < C_STICK_BOTTOM_THRESHOLD;
 }
 
 bool is_joy_smash(Controller *controller)
 {
-    return controller->joy_x > SMASH_TOP_THRESHOLD    ||
-           controller->joy_x < SMASH_BOTTOM_THRESHOLD ||
-           controller->joy_y > SMASH_TOP_THRESHOLD    ||
-           controller->joy_y < SMASH_BOTTOM_THRESHOLD; 
+    return controller->joy_x > SMASH_TOP_THRESHOLD - 55    ||
+           controller->joy_x < SMASH_BOTTOM_THRESHOLD + 55 ||
+           controller->joy_y > SMASH_TOP_THRESHOLD - 55    ||
+           controller->joy_y < SMASH_BOTTOM_THRESHOLD + 55; 
+}
+
+bool is_joy_move(Controller *controller)
+{
+    return controller->joy_x > C_STICK_TOP_THRESHOLD    ||
+           controller->joy_x < C_STICK_BOTTOM_THRESHOLD ||
+           controller->joy_y > C_STICK_TOP_THRESHOLD    ||
+           controller->joy_y < C_STICK_BOTTOM_THRESHOLD;
 }
 
 bool is_rl_shield(Controller *controller)
@@ -370,4 +420,19 @@ void idle_lights()
             pers_color.color.b -= 1;
         }
     }
+}
+
+void flash_color(Animation *anim, Color *color, uint8_t count)
+{
+    for(uint8_t i = 0; i < count; i++)
+    {
+        set_next_color(anim, color->r, color->g, color->b); 
+        set_next_color(anim, 0, 0, 0); 
+    }
+}
+
+void flash_color(Animation *anim, uint8_t r, uint8_t g, uint8_t b, uint8_t count)
+{
+    Color color = new_color(r, g, b);
+    flash_color(anim, &color, count);
 }

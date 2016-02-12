@@ -54,6 +54,8 @@ void state_xy(Reason reason, Controller *controller, Animation *anim);
 void state_rl(Reason reason, Controller *controller, Animation *anim);
 void state_d_down(Reason reason, Controller *controller, Animation *anim);
 void state_smash(Reason reason, Controller *controller, Animation *anim);
+void state_directional_b(Reason reason, Controller *controller, Animation *anim);
+void state_no_action(Reason reason, Controller *controller, Animation *anim);
 void state_no_input(Reason reason, Controller *controller, Animation *anim);
 
 // A function to handle the animation of the idling lights
@@ -62,12 +64,17 @@ void idle_lights();
 // Determines if the joystick is in smash position
 bool is_joy_smash(Controller *controller);
 bool is_c_smash(Controller *controller);
+bool is_joy_move(Controller *controller);
 
 // Determines if the trigger is in shield position
 bool is_rl_shield(Controller *controller);
 
 // A generic stupid state look up, it's awful. fix it
 State_ptr generic_state_lookup(Controller *controller);
+
+// Set a flash animation in the animation
+void flash_color(Animation *anim, Color *color, uint8_t count);
+void flash_color(Animation *anim, uint8_t r, uint8_t g, uint8_t b, uint8_t count);
 
 #include "statemachine.c"
 

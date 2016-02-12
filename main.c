@@ -158,7 +158,10 @@ int main(void)
     machine_init();
 
     Animation anim;
+    clear_animation(&anim);
     bool prev_machine_toggle = true;
+
+    delay_ms(1000);
 
     while(1)
     {
